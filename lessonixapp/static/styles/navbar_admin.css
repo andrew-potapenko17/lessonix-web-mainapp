@@ -1,0 +1,58 @@
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100vh;
+    background-color: #f4f4f4;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+}
+
+.navbar-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: center;
+}
+
+.links-container {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.school-info {
+    height: 60px;
+    background-color: #E5E8EC;
+    width: 200px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+}
+.navbar h1 {
+    font-size: 24px;
+    margin: 0;
+    padding: 10px 0;
+    text-align: left;
+    color: #333;
+}
+.navbar a {
+    text-decoration: none;
+    color: #007bff;
+}
+.navbar a:hover {
+    text-decoration: underline;
+}
