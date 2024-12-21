@@ -27,4 +27,7 @@ urlpatterns = [
     path('sendmessage/', views.post_message, name="post_message"),
     path('download_txt/', views.download_txt, name='download_txt'),
     path('download_xlsx/', views.download_xlsx, name='download_xlsx'),
+    path('delete_class/<str:class_name>/', views.delete_class, name='del_class'),
+    path('events/', views.eventsPage, name='events'),
+    path('event/<str:eventHash>/', views.singleEventPage, name='eventPage'),
 ]

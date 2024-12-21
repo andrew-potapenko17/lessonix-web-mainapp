@@ -27,6 +27,11 @@
                 <a href="{% url 'reports' %}">
                     <p class="button">Журнали</p>
                 </a>
+                {% if request.session.lvl >= 2 %}
+                <a href="{% url 'events' %}">
+                    <p class="button">Заходи</p>
+                </a>
+                {% endif %}
                 {% elif request.session.role == "med" %}
                 <a href="{% url 'my_school' %}">
                     <p class="button">Моя школа</p>

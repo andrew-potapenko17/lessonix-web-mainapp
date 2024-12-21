@@ -54,6 +54,7 @@ def authenticate(request):
                 school_id = user_data.get('school_id', '0')
                 classes = user_data.get('classes', {})
                 role = user_data.get('role', 'Unknown')
+                lvl = user_data.get('lvl', 1)
 
             request.session['uid'] = str(session_id)
             request.session['user_id'] = str(user_id)
@@ -63,6 +64,7 @@ def authenticate(request):
             request.session['classes'] = list(classes.keys())
             request.session['students'] = []
             request.session['role'] = role
+            request.session['lvl'] = lvl
 
             messages.success(request, "Successfully logged in")
             return redirect('home')
@@ -524,6 +526,8 @@ def teacher_reports_page(request):
 def home(request):
     user_id = request.session.get('user_id')
     school_id = request.session.get('school_id')
+
+    print(school_id)
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
@@ -1226,4 +1230,82 @@ def delete_class(request, class_name):
         messages.error(request, f"Failed to remove class. Error: {str(e)}")
     
     return redirect('my_classes')
+
+def generate_event_hash(schoolID):
+    while True:
+        eventHash = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        if not db.child("events").child(schoolID).child(eventHash).get().val():
+            return eventHash
+
+def eventsPage(request):
+    schoolID = request.session['school_id']
+    user_id = request.session['user_id']
+
+    user_cabs = db.child('users').child(user_id).child('cabs').get().val()
+
+    user_events = db.child('users').child(user_id).child('events').get().val()
+
+    if not user_cabs:
+        user_cabs = []
+    
+    user_events_context = []
+
+    if user_events:
+        for event_hash in user_events:
+            # Fetch event details from the global events collection
+            event_data = db.child("events").child(schoolID).child(event_hash).get().val()
+            if event_data:
+                match event_data.get("started", 0):
+                    case 0:
+                        started = "Не розпочато"
+                    case 1:
+                        started = "Триває"
+                    case 2:
+                        started = "Завершено"
+                    case _:
+                        started = "Unknown"
+                user_events_context.append({
+                    "name": event_data.get("topic", "Unknown Topic"),
+                    "started": started,
+                    "time": event_data.get("time", "Unknown"),
+                    "hash": event_hash,
+                })
+
+    context = {
+        'user_cabs': user_cabs,
+        'user_events': user_events_context,
+    }
+
+    if request.method == 'POST':
+        print("POST")
+        topic = request.POST.get('topic')
+        cabinet = request.POST.get('cabinet')
+        time = request.POST.get('time')
+
+        eventHash = generate_event_hash(schoolID)
+
+        db.child("events").child(schoolID).child(eventHash).set({
+            "topic": topic,
+            "cabinet": cabinet,
+            "time": time,
+            "started": 0,
+        })
+
+        user_data = db.child("users").child(user_id).get().val()
+        events = user_data.get('events', {})
+        if not isinstance(events, dict):
+            events = {}
+
+        if eventHash not in events:
+            events[eventHash] = eventHash
+            db.child("users").child(user_id).update({"events": events})
+                    
+            request.session['events'] = list(events.keys())
+
+        return redirect('events')
+
+    return render(request, "lessonixTeacher/events.html", context)
+
+def singleEventPage(request, eventHash):
+    return HttpResponse("Event:" + eventHash)
 
