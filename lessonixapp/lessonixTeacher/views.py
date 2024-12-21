@@ -68,7 +68,7 @@ def authenticate(request):
             return redirect('home')
         except Exception as e:
             messages.error(request, f"Invalid credentials. Please try again. Error: {str(e)}")
-            return redirect('login')
+            return redirect('authenticate')
 
 
     except jwt.ExpiredSignatureError:
@@ -204,7 +204,7 @@ def view_class_report(request):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     selected_class = request.GET.get('class_name')
     selected_subject = request.GET.get('subject_name')
@@ -302,7 +302,7 @@ def lesson_completed(request):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         user_data = db.child("users").child(user_id).get().val()
@@ -500,7 +500,7 @@ def teacher_reports_page(request):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         user_info = db.child("users").child(user_id).get().val()
@@ -527,7 +527,7 @@ def home(request):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     #return render(request, 'lessonixTeacher/home.html', context)
     return render(request, 'lessonixTeacher/home.html')
@@ -569,7 +569,7 @@ def post_message(request):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     if request.method == 'POST':
         try:
@@ -613,106 +613,9 @@ def generate_unique_school_id():
         if not db.child('schools').child(school_id).get().val():
             return school_id
 
-def admin_login(request):
-    if request.method == 'POST':
-        password = request.POST.get('password')
-        
-        if password == cfg.ADMIN_PASSWORD:
-            request.session['is_admin'] = True
-            return redirect('create_school')
-        else:
-            return HttpResponse("Invalid password. Try again.")
-    
-    return render(request, 'lessonixTeacher/adminlogin.html')
-
 def generate_random_password(length=8):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length))
-
-def create_school(request):
-    if not request.session.get('is_admin'):
-        return redirect('admin_login')
-    
-    if request.method == 'POST':
-        school_name = request.POST.get('school_name')
-        
-        school_id = generate_unique_school_id()
-        admin_password = generate_random_password()
-        
-        school_data = {
-            'school_name': school_name,
-            'password': admin_password
-        }
-        
-        db.child('schools').child(school_id).set(school_data)
-        
-        return redirect('school_success', school_id=school_id)
-    
-    return render(request, 'lessonixTeacher/createschool.html')
-
-
-def school_success(request, school_id):
-    school_ref = db.child('schools').child(school_id)
-    school_data = school_ref.get().val()
-
-    if school_data:
-        school_name = school_data.get('school_name')
-        school_mid = school_data.get('school_mid')
-        admin_password = school_data.get('password')  # Get the admin password
-        
-        context = {
-            'school_name': school_name,
-            'school_id': school_id,
-            'school_mid': school_mid,
-            'admin_password': admin_password  # Add the password to the context
-        }
-        return render(request, 'lessonixTeacher/creatingschoolsucces.html', context)
-    else:
-        return render(request, 'lessonixTeacher/home.html', {'message': 'School not found.'})
-
-def admin_control_page(request):
-    if request.method == 'POST':
-        school_id = request.POST.get('school_id')
-        password = request.POST.get('password')
-
-        school_data = db.child('schools').child(school_id).get().val()
-
-        if school_data:
-            school_name = school_data.get('school_name')
-            stored_password = school_data.get('password')
-
-            if password == stored_password:
-                request.session['school_id'] = school_id
-                request.session['school'] = str(school_name)
-
-                context = {
-                    'school_name': school_name,
-                    'school_id': school_id
-                }
-                return render(request, 'lessonixTeacher/admin_control.html', context)
-            else:
-                return render(request, 'lessonixTeacher/sadmin_login.html', {'error': 'Incorrect password.'})
-        else:
-            return render(request, 'lessonixTeacher/sadmin_login.html', {'error': 'School not found.'})
-
-    return render(request, 'lessonixTeacher/sadmin_login.html')
-
-def admin_control_panel(request):
-    # Check if the user has already logged in by verifying the session
-    school_id = request.session.get('school_id')
-    if not school_id:
-        return redirect('admin_control_page')
-
-    # Fetch school data for the session school_id
-    school_data = db.child('schools').child(school_id).get().val()
-    if school_data:
-        school_name = school_data.get('school_name')
-        context = {
-            'school_name': school_name
-        }
-        return render(request, 'lessonixTeacher/admin_control.html', context)
-    else:
-        return redirect('admin_control_page')
 
 def myschoolPage(request):
     school_id = request.session.get('school_id')
@@ -736,54 +639,6 @@ def myschoolPage(request):
         messages.error(request, f"Failed to retrieve users. Error: {str(e)}")
 
     return render(request, 'lessonixTeacher/myschool.html', {'school_name': school_name, 'users': users_list})
-
-def adm_mySchoolPage(request):
-    school_id = request.session.get('school_id')
-    try:
-        users = db.child("users").get().val()
-        if users:
-            users_list = [
-                {
-                    'full_name': user_info['full_name'],
-                    'user_id': user_id,
-                    'role': 'медичний персонал' if user_info.get('role') == 'med' else 'вчитель' if user_info.get('role') == 'teacher' else user_info.get('role')
-                }
-                for user_id, user_info in users.items()
-                if user_info.get('school_id') == school_id and user_info.get('role') != 'student'
-            ]
-        else:
-            users_list = []
-    except Exception as e:
-        users_list = []
-        messages.error(request, f"Failed to retrieve users. Error: {str(e)}")
-
-    return render(request, 'lessonixTeacher/adm_myschool.html', {'users': users_list})
-
-def adm_notRegisteredPersonellPage(request):
-    school_id = request.session.get('school_id')
-
-    try:
-        # Fetch the data from /personalregistercodes
-        personal_register_codes = db.child("personalregistercodes").get().val()
-        
-        # Check if data exists and filter the users
-        if personal_register_codes:
-            not_registered_users = [
-                {
-                    'code': code,
-                    'full_name': user_info['full_name'],
-                    'role': user_info.get('role', 'N/A')  # Default role to 'N/A' if not available
-                }
-                for code, user_info in personal_register_codes.items()
-                if user_info.get('school_id') == school_id
-            ]
-        else:
-            not_registered_users = []
-    except Exception as e:
-        not_registered_users = []
-        messages.error(request, f"Failed to retrieve not registered users. Error: {str(e)}")
-
-    return render(request, 'lessonixTeacher/adm_notregistered.html', {'users': not_registered_users})
 
 def schoolclassesPage(request):
     school_id = request.session.get('school_id')
@@ -815,84 +670,13 @@ def schoolclassesPage(request):
 
     return render(request, 'lessonixTeacher/schoolclasses.html', {'classes': classes_list, 'school_id': school_id, "school_name": school_name})
 
-def full_del_class(request, class_name):
-    school_id = request.session.get('school_id')
-    if not school_id:
-        messages.error(request, "School ID is missing.")
-        return redirect('adm_schoolclasses')
-
-    try:
-        db.child("school_classes").child(school_id).child(class_name).remove()
-        messages.success(request, f"Class '{class_name}' has been successfully deleted.")
-    except Exception as e:
-        messages.error(request, f"Failed to delete class '{class_name}'. Error: {str(e)}")
-    
-    return redirect('adm_schoolclasses')
-
-def adm_schoolclassesPage(request):
-    school_id = request.session.get('school_id')
-    try:
-        classes = db.child("school_classes").child(school_id).get().val()
-        classes_list = []
-
-        if classes:
-            for class_key, class_info in classes.items():
-                students = []
-                
-                for student_id in class_info.get('students', []):
-                    student_data = db.child("students").child(school_id).child(student_id).get().val()
-                    if student_data:
-                        full_name = student_data.get('full_name', 'Unknown')
-                        students.append(f"{full_name}")
-
-                classes_list.append({
-                    'name': class_info.get('name', 'Unnamed class'),
-                    'students': students,
-                })
-        else:
-            classes_list = []
-
-    except Exception as e:
-        classes_list = []
-        messages.error(request, f"Failed to retrieve classes. Error: {str(e)}")
-
-    return render(request, 'lessonixTeacher/adm_schoolclasses.html', {'classes': classes_list, 'school_id': school_id})
-
-def register_personnel(request):
-    if request.method == 'POST':
-        full_name = request.POST.get('full_name')
-        role = request.POST.get('role')
-        school_id = request.session.get('school_id')
-
-        if not db.child('schools').child(school_id).get().val():
-            messages.error(request, "Invalid school ID")
-            return redirect('register_personnel')
-
-        register_code = ''.join(random.choices(string.digits, k=10))
-
-        try:
-            db.child('personalregistercodes').child(str(register_code)).set({
-                "full_name": full_name,
-                "school_id": school_id,
-                "role": role,
-            })
-
-            messages.success(request, f"Personnel registered with code: {register_code}")
-            return redirect('admin_control_panel')
-
-        except Exception as e:
-            messages.error(request, f"Error occurred: {str(e)}")
-            return redirect('register_personnel')
-
-    return render(request, 'lessonixTeacher/register_personnel.html')
-
 def myclassesPage(request):
     user_id = request.session.get('user_id')
     school_id = request.session.get('school_id')
 
     if not user_id or not school_id:
         messages.error(request, "User not authenticated or school ID missing. Please log in.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         user_data = db.child("users").child(user_id).get().val()
@@ -928,58 +712,6 @@ def myclassesPage(request):
         messages.error(request, f"Failed to load classes. Error: {str(e)}")
         return redirect('home')
 
-
-def addclassPage(request):
-    if request.method == 'POST':
-        class_name = request.POST.get('name')
-        school_id = request.session.get('school_id')
-        students_list = request.session.get('students', [])
-
-        if not school_id:
-            messages.error(request, "School ID is missing. Please log in again.")
-            return redirect('admin_control_panel')
-
-        try:
-            student_ids = []
-            for full_name in students_list:
-                student_id = generate_unique_student_id()
-                student_ids.append(student_id)
-                
-                registration_code = generate_registration_code()
-
-                db.child("registercodes").child(registration_code).set({
-                    "student_id": student_id,
-                    "class": class_name,
-                    "schoolID": school_id
-                })
-
-                db.child("students").child(school_id).child(student_id).set({
-                    "full_name": full_name,
-                    "registered": False,
-                    "registercode": registration_code,
-                    "schoolStatus": "nolesson",
-                    "studentStatus": "outschool",
-                    "class": class_name,
-                })
-
-            db.child("school_classes").child(school_id).child(class_name).set({
-                "name": class_name,
-                "students": student_ids 
-            })
-
-                
-            messages.success(request, f"Class '{class_name}' added to your classes along with the students.")
-            
-            request.session['students'] = []
-            
-            return redirect('adm_schoolclasses')
-        except Exception as e:
-            messages.error(request, f"Failed to add class. Error: {str(e)}")
-            return redirect('add_class')
-
-    students_list = request.session.get('students', [])
-    return render(request, 'lessonixTeacher/addclass.html', {'students': students_list})
-
 def generate_registration_code():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
 
@@ -991,7 +723,7 @@ def add_to_your_classes(request, class_name):
 
     if not user_id:
         messages.error(request, "User not logged in. Please log in to add classes.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         user_data = db.child("users").child(user_id).get().val()
@@ -1012,24 +744,6 @@ def add_to_your_classes(request, class_name):
         messages.error(request, f"Failed to add class. Error: {str(e)}")
 
     return redirect('my_classes')
-
-def addstudentPage(request):
-    if request.method == 'POST':
-        full_name = request.POST.get('full_name')
-
-        students_list = request.session.get('students', [])
-        students_list.append(full_name)
-
-        ukr_alphabet = "АаБбВвГгҐґДдЕеЄєЖжЗзИиІіЇїЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЬьЮюЯя"
-        
-        students_list.sort(key=lambda name: [ukr_alphabet.index(char) for char in name if char in ukr_alphabet])
-        
-        request.session['students'] = students_list
-
-        messages.success(request, f"Student '{full_name}' added to the local class list.")
-        return redirect('add_class')
-
-    return render(request, 'lessonixTeacher/addstudent.html')
 
 def profilePage(request, user_id):
     try:
@@ -1078,7 +792,7 @@ def delete_class(request, class_name):
     
     if not user_id:
         messages.error(request, "User not logged in. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         user_data = db.child("users").child(user_id).get().val()
@@ -1105,7 +819,7 @@ def delete_class(request, class_name):
 def student_detail(request, school_id, student_id):
     if not school_id:
         messages.error(request, "School ID is missing. Please log in again.")
-        return redirect('login')
+        return redirect('authenticate')
 
     try:
         student_data = db.child("students").child(school_id).child(student_id).get().val()
@@ -1194,7 +908,7 @@ def addCabinet(request):
 
         if not user_id:
             messages.error(request, "User not logged in. Please log in to add cabinet.")
-            return redirect('login')
+            return redirect('authenticate')
 
         try:
             user_data = db.child("users").child(user_id).get().val()
@@ -1224,7 +938,7 @@ def addSubject(request):
 
         if not user_id:
             messages.error(request, "User not logged in. Please log in to add subject.")
-            return redirect('login')
+            return redirect('authenticate')
 
         try:
             user_data = db.child("users").child(user_id).get().val()
