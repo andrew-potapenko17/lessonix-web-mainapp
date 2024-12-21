@@ -1198,3 +1198,32 @@ def myclass(request):
         'students': students
     })
 
+def delete_class(request, class_name):
+    user_id = request.session.get('user_id')
+    
+    if not user_id:
+        messages.error(request, "User not logged in. Please log in again.")
+        return redirect('authenticate')
+
+    try:
+        user_data = db.child("users").child(user_id).get().val()
+        if user_data:
+            classes = user_data.get('classes', {})
+            if not isinstance(classes, dict):
+                classes = {}
+
+            if class_name in classes:
+                del classes[class_name]
+                db.child("users").child(user_id).update({"classes": classes})
+                
+                request.session['classes'] = list(classes.keys())
+                messages.success(request, f"Class '{class_name}' removed from your classes.")
+            else:
+                messages.error(request, f"Class '{class_name}' not found in your classes.")
+        else:
+            messages.error(request, "User data not found.")
+    except Exception as e:
+        messages.error(request, f"Failed to remove class. Error: {str(e)}")
+    
+    return redirect('my_classes')
+
