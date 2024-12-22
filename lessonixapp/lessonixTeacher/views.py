@@ -1277,7 +1277,6 @@ def eventsPage(request):
     }
 
     if request.method == 'POST':
-        print("POST")
         topic = request.POST.get('topic')
         cabinet = request.POST.get('cabinet')
         time = request.POST.get('time')
@@ -1289,6 +1288,13 @@ def eventsPage(request):
             "cabinet": cabinet,
             "time": time,
             "started": 0,
+            "organizator": user_id,
+        })
+        
+        full_name = db.child('users').child(user_id).child("full_name").get().val()
+
+        db.child("events").child(schoolID).child(eventHash).child("users").update({
+            full_name + " ( Організатор )": full_name + " ( Організатор )",
         })
 
         user_data = db.child("users").child(user_id).get().val()
@@ -1307,5 +1313,104 @@ def eventsPage(request):
     return render(request, "lessonixTeacher/events.html", context)
 
 def singleEventPage(request, eventHash):
-    return HttpResponse("Event:" + eventHash)
+    schoolID = request.session['school_id']
+    user_id = request.session['user_id']
+    event_data = db.child("events").child(schoolID).child(eventHash).get().val()
+    cabinet = event_data.get("cabinet", "xxx")
+    qr = Image.open("static/img/qr-base.png").convert("RGBA")
 
+    if event_data:
+        match event_data.get("started", 0):
+            case 0:
+                started = "Не розпочато"
+                actionButton = "Розпочати захід"
+            case 1:
+                started = "Триває"
+                actionButton = "Завершити захід"
+                qr = generateEventQR(eventHash, cabinet, schoolID)
+            case 2:
+                started = "Завершено"
+                actionButton = "Захід завершено"
+            case _:
+                started = "Unknown"
+                actionButton = "EVENT_ACTION"
+        
+        persons = db.child('events').child(schoolID).child(eventHash).child('users').get().val()
+
+        if not persons:
+            persons = []
+
+        context = {
+            "name": event_data.get("topic", "Unknown Topic"),
+            "started": started,
+            "actionButton": actionButton,
+            "time": event_data.get("time", "Unknown"),
+            "hash": eventHash,
+            "qr_code": qr,
+            "persons": persons,
+        }
+    return render(request, 'lessonixTeacher/eventPage.html', context)
+
+def eventAction(request, eventHash):
+    schoolID = request.session['school_id']
+    user_id = request.session['user_id']
+
+    event_data = db.child("events").child(schoolID).child(eventHash).get().val()
+
+    if user_id!=event_data.get("organizator", "Unknown"):
+        return redirect('eventPage', eventHash)
+
+    started = event_data.get("started", 0)
+
+    if started <=1:
+        started+=1
+    else:
+        return redirect('eventPage', eventHash)
+    
+    db.child("events").child(schoolID).child(eventHash).update({
+        "started": started,
+    })
+    
+    return redirect('eventPage', eventHash)
+
+def generateEventQR(eventHash, cabinet, schoolID):
+    qr_data = f"hash: {eventHash}\ncabinet: {cabinet}\nschoolID: {schoolID}"
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill="black", back_color="white").convert("RGB")
+
+    # Додаємо білий квадрат 150x150 у центрі QR-коду
+    draw = ImageDraw.Draw(qr_img)
+    
+    # Параметри для білого квадрата (150x150)
+    square_size = 150
+    square_x0 = (qr_img.size[0] - square_size) // 2
+    square_y0 = (qr_img.size[1] - square_size) // 2
+    square_x1 = square_x0 + square_size
+    square_y1 = square_y0 + square_size
+
+    # Малюємо білий квадрат
+    draw.rectangle([square_x0, square_y0, square_x1, square_y1], fill="white")
+
+    # Завантажуємо зображення для вставки в центр
+    overlay_image = Image.open("static/img/qr-base.png").convert("RGBA")
+
+    # Вираховуємо позицію для вставки зображення в центр
+    overlay_x = square_x0 + (square_size - overlay_image.size[0]) // 2
+    overlay_y = square_y0 + (square_size - overlay_image.size[1]) // 2
+
+    # Накладаємо зображення
+    qr_img.paste(overlay_image, (overlay_x, overlay_y), overlay_image)
+
+    # Перетворення зображення QR-коду у формат base64 для передачі в HTML
+    buffer = BytesIO()
+    qr_img.save(buffer, format="PNG")
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return qr_base64

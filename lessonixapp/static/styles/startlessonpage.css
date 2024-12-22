@@ -61,6 +61,7 @@
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    text-decoration: none; 
 }
 
 #start-lesson-page .start-button:hover {
